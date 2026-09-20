@@ -1,0 +1,21 @@
+# Example PostgreSQL for PALAWANSU
+# Start: docker compose up -d
+# Then run: php sql/seed.php
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: palawansu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: palawansu_deficiency
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - palawansu_pgdata:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+volumes:
+  palawansu_pgdata:

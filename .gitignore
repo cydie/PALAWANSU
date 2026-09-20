@@ -1,0 +1,8 @@
+node_modules
+.next
+out
+.env.local
+uploads/documents/*
+!uploads/documents/.gitkeep
+uploads/profiles/*
+!uploads/profiles/.gitkeep
