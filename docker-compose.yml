@@ -1,7 +1,3 @@
-# Example PostgreSQL for PALAWANSU
-# Start: docker compose up -d
-# Then run: php sql/seed.php
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,11 +7,35 @@ services:
       POSTGRES_DB: palawansu_deficiency
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d palawansu_deficiency']
+      interval: 2s
+      timeout: 5s
+      retries: 30
     volumes:
       - palawansu_pgdata:/var/lib/postgresql/data
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
 
+  web:
+    build: .
+    container_name: palawansu-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: palawansu_deficiency
+      SESSION_SECRET: palawansu-docker-session
+    ports:
+      - '3000:3000'
+    volumes:
+      - palawansu_uploads:/app/uploads
+
 volumes:
   palawansu_pgdata:
+  palawansu_uploads:

@@ -8,7 +8,10 @@ function loadEnv() {
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     if (!line || line.startsWith('#')) continue;
     const i = line.indexOf('=');
-    if (i > 0) process.env[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    if (i > 0) {
+      const key = line.slice(0, i).trim();
+      if (process.env[key] === undefined) process.env[key] = line.slice(i + 1).trim();
+    }
   }
 }
 

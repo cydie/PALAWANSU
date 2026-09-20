@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start -p 3000",
     "seed": "node scripts/seed.js",
-    "db:init": "node scripts/init-db.js"
+    "db:init": "node scripts/init-db.js",
+    "docker": "docker compose up --build"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
