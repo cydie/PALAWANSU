@@ -1,6 +1,7 @@
+import bcrypt from 'bcryptjs';
 import { json, requireStaff } from '@/lib/auth';
-import { many, query } from '@/lib/db';
-import { logAction } from '@/lib/notify';
+import { many, one, query } from '@/lib/db';
+import { logAction, notifyStudent } from '@/lib/notify';
 
 export async function GET(request) {
   const { error } = await requireStaff();
@@ -8,20 +9,68 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category') || 'All';
   const q = (searchParams.get('q') || '').trim();
+  const detailId = Number(searchParams.get('detail') || 0);
+
+  if (detailId > 0) {
+    const students = await many(
+      `SELECT user_id, student_number, first_name, last_name, middle_name, email, role, status, created_at
+       FROM users WHERE user_id=$1 AND role IN ('Freshman','Transferee','Graduating')`,
+      [detailId]
+    );
+    if (!students.length) return json({ ok: false, error: 'Student not found.' }, 404);
+    const deficiencies = await many(
+      `SELECT sd.*, dt.deficiency_name, dt.required_document
+       FROM student_deficiencies sd
+       JOIN deficiency_types dt ON dt.deficiency_id = sd.deficiency_id
+       WHERE sd.user_id=$1
+       ORDER BY sd.assigned_date DESC`,
+      [detailId]
+    );
+    const uploads = await many(
+      `SELECT ud.document_id, ud.student_deficiency_id, ud.file_name, ud.file_path, ud.file_type,
+              ud.review_status, ud.remarks, ud.uploaded_at, dt.deficiency_name, dt.required_document
+       FROM uploaded_documents ud
+       JOIN student_deficiencies sd ON sd.student_deficiency_id = ud.student_deficiency_id
+       JOIN deficiency_types dt ON dt.deficiency_id = sd.deficiency_id
+       WHERE sd.user_id=$1
+       ORDER BY ud.uploaded_at DESC`,
+      [detailId]
+    );
+    const open = deficiencies.filter((d) => !['Completed', 'Approved'].includes(d.status)).length;
+    const cleared = deficiencies.filter((d) => ['Completed', 'Approved'].includes(d.status)).length;
+    return json({
+      ok: true,
+      student: students[0],
+      deficiencies,
+      uploads,
+      clearance: {
+        total: deficiencies.length,
+        open,
+        cleared,
+        status: deficiencies.length === 0 ? 'No assignments' : open === 0 ? 'Cleared' : 'Has open deficiencies',
+      },
+    });
+  }
 
   const params = [];
-  let sql = `SELECT user_id, student_number, first_name, last_name, middle_name, email, role, status, created_at
-             FROM users WHERE role IN ('Freshman','Transferee','Graduating')`;
+  let sql = `SELECT u.user_id, u.student_number, u.first_name, u.last_name, u.middle_name, u.email, u.role, u.status, u.created_at,
+                    COALESCE(SUM(CASE WHEN sd.status IN ('Pending','Under Review','Rejected') THEN 1 ELSE 0 END),0)::int AS open_deficiencies,
+                    COALESCE(SUM(CASE WHEN sd.status IN ('Completed','Approved') THEN 1 ELSE 0 END),0)::int AS cleared_deficiencies,
+                    COUNT(sd.student_deficiency_id)::int AS total_deficiencies
+             FROM users u
+             LEFT JOIN student_deficiencies sd ON sd.user_id = u.user_id
+             WHERE u.role IN ('Freshman','Transferee','Graduating')`;
   if (['Freshman', 'Transferee', 'Graduating'].includes(category)) {
     params.push(category);
-    sql += ` AND role = $${params.length}`;
+    sql += ` AND u.role = $${params.length}`;
   }
   if (q) {
     params.push(`%${q}%`);
     const n = params.length;
-    sql += ` AND (first_name ILIKE $${n} OR last_name ILIKE $${n} OR student_number ILIKE $${n} OR email ILIKE $${n})`;
+    sql += ` AND (u.first_name ILIKE $${n} OR u.last_name ILIKE $${n} OR u.student_number ILIKE $${n} OR u.email ILIKE $${n})`;
   }
-  sql += ' ORDER BY last_name, first_name';
+  sql += ` GROUP BY u.user_id
+           ORDER BY u.last_name, u.first_name`;
   return json({ ok: true, students: await many(sql, params) });
 }
 
@@ -29,7 +78,48 @@ export async function POST(request) {
   const { user, error } = await requireStaff();
   if (error) return error;
   const body = await request.json().catch(() => ({}));
-  const id = Number(body.user_id || 0);
+  const action = String(body.action || 'update');
+
+  if (action === 'set_status') {
+    const id = Number(body.user_id || 0);
+    const status = String(body.status || '').trim();
+    if (id < 1) return json({ ok: false, error: 'Student not found.' }, 404);
+    if (!['Active', 'Inactive', 'Pending'].includes(status)) {
+      return json({ ok: false, error: 'Choose Active, Inactive, or Pending.' }, 422);
+    }
+    const target = await one(
+      `SELECT user_id, status, first_name, last_name FROM users
+       WHERE user_id=$1 AND role IN ('Freshman','Transferee','Graduating')`,
+      [id]
+    );
+    if (!target) return json({ ok: false, error: 'Student not found.' }, 404);
+    if (target.status === status) {
+      return json({ ok: true, message: `Status is already ${status}.` });
+    }
+    await query(
+      `UPDATE users SET status=$1
+       WHERE user_id=$2 AND role IN ('Freshman','Transferee','Graduating')`,
+      [status, id]
+    );
+    await logAction(user.user_id, `Changed student #${id} status to ${status}`);
+    if (status === 'Active' && target.status !== 'Active') {
+      await notifyStudent(
+        user.user_id,
+        id,
+        'Account activated',
+        'Your PSU Rizal student account is now Active. You may sign in and complete your deficiency requirements.'
+      );
+    } else if (status === 'Inactive') {
+      await notifyStudent(
+        user.user_id,
+        id,
+        'Account deactivated',
+        'Your PSU Rizal student account was set to Inactive. Contact the registrar if you need access restored.'
+      );
+    }
+    return json({ ok: true, message: `Status updated to ${status}.` });
+  }
+
   const first = String(body.first_name || '').trim();
   const last = String(body.last_name || '').trim();
   const middle = String(body.middle_name || '').trim();
@@ -37,17 +127,81 @@ export async function POST(request) {
   const studentNumber = String(body.student_number || '').trim();
   const role = String(body.role || '');
   const status = String(body.status || 'Active');
+
   if (!['Freshman', 'Transferee', 'Graduating'].includes(role)) {
     return json({ ok: false, error: 'Invalid student category.' }, 422);
   }
-  if (!first || !last || !email.includes('@')) {
-    return json({ ok: false, error: 'Invalid student details.' }, 422);
+  if (!['Active', 'Inactive', 'Pending'].includes(status)) {
+    return json({ ok: false, error: 'Invalid status.' }, 422);
   }
-  await query(
-    `UPDATE users SET first_name=$1, last_name=$2, middle_name=$3, email=$4, student_number=$5, role=$6, status=$7
-     WHERE user_id=$8 AND role IN ('Freshman','Transferee','Graduating')`,
-    [first, last, middle || null, email, studentNumber || null, role, status, id]
+  if (!first || !last || !email.includes('@') || !studentNumber) {
+    return json({ ok: false, error: 'Name, email, and student number are required.' }, 422);
+  }
+
+  if (action === 'create') {
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    if (username.length < 3) {
+      return json({ ok: false, error: 'Username must be at least 3 characters.' }, 422);
+    }
+    if (password.length < 8) {
+      return json({ ok: false, error: 'Password must be at least 8 characters.' }, 422);
+    }
+
+    const exists = await one(
+      'SELECT user_id FROM users WHERE email=$1 OR username=$2 OR student_number=$3 LIMIT 1',
+      [email, username, studentNumber]
+    );
+    if (exists) {
+      return json({ ok: false, error: 'Email, username, or student number already exists.' }, 409);
+    }
+
+    const inserted = await one(
+      `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING user_id, student_number, first_name, last_name, email, username, role, status`,
+      [
+        studentNumber,
+        first,
+        last,
+        middle || null,
+        email,
+        username,
+        await bcrypt.hash(password, 12),
+        role,
+        status,
+      ]
+    );
+    await logAction(
+      user.user_id,
+      `Manually added student ${username} (${studentNumber}) as ${role}`
+    );
+    return json({ ok: true, message: 'Student added successfully.', student: inserted });
+  }
+
+  const id = Number(body.user_id || 0);
+  if (id < 1) return json({ ok: false, error: 'Student not found.' }, 404);
+
+  const before = await one(
+    `SELECT status FROM users WHERE user_id=$1 AND role IN ('Freshman','Transferee','Graduating')`,
+    [id]
   );
+  const updated = await one(
+    `UPDATE users SET first_name=$1, last_name=$2, middle_name=$3, email=$4, student_number=$5, role=$6, status=$7
+     WHERE user_id=$8 AND role IN ('Freshman','Transferee','Graduating')
+     RETURNING user_id, status`,
+    [first, last, middle || null, email, studentNumber, role, status, id]
+  );
+  if (!updated) return json({ ok: false, error: 'Student not found.' }, 404);
+
   await logAction(user.user_id, `Updated student #${id}`);
-  return json({ ok: true });
+  if (before && before.status !== status && status === 'Active') {
+    await notifyStudent(
+      user.user_id,
+      id,
+      'Account activated',
+      'Your PSU Rizal student account is now Active. You may sign in and complete your deficiency requirements.'
+    );
+  }
+  return json({ ok: true, message: 'Student updated.' });
 }

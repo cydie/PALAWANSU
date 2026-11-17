@@ -22,9 +22,9 @@ export default function AdminDashboardPage() {
       <div className="row g-3 mb-3">
         {[
           ['bi-people', 'Students', stats.students],
-          ['bi-clipboard-check', 'Assigned deficiencies', stats.deficiencies],
-          ['bi-hourglass-split', 'Pending reviews', stats.pending],
-          ['bi-check2-circle', 'Completed', stats.completed],
+          ['bi-exclamation-circle', 'Open deficiencies', stats.openDefs ?? stats.deficiencies],
+          ['bi-hourglass-split', 'Pending document reviews', stats.pending],
+          ['bi-check2-circle', 'Cleared deficiencies', stats.completed],
         ].map(([icon, label, value]) => (
           <div className="col-6 col-xl-3" key={label}>
             <div className="stat-card">
@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
             <ul className="list-group list-group-flush">
               <li className="list-group-item d-flex justify-content-between"><span>Approved</span><strong>{stats.approved}</strong></li>
               <li className="list-group-item d-flex justify-content-between"><span>Rejected</span><strong>{stats.rejected}</strong></li>
-              <li className="list-group-item d-flex justify-content-between"><span>Unread notifications</span><strong>{stats.unread}</strong></li>
+              <li className="list-group-item d-flex justify-content-between"><span>Pending review</span><strong>{stats.pending}</strong></li>
             </ul>
             <Link className="btn btn-primary w-100 mt-3" href="/admin/verification">Go to verification</Link>
           </div>

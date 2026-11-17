@@ -2,6 +2,13 @@ import { json, requireStaff } from '@/lib/auth';
 import { many, one, query } from '@/lib/db';
 import { logAction } from '@/lib/notify';
 
+const APPLIES = new Set(['All', 'Freshman', 'Transferee', 'Graduating', 'Freshman,Transferee', 'Transferee,Graduating']);
+
+function normalizeApplies(value) {
+  const raw = String(value || 'All').trim();
+  return APPLIES.has(raw) ? raw : 'All';
+}
+
 export async function GET() {
   const { error } = await requireStaff();
   if (error) return error;
@@ -16,13 +23,14 @@ export async function POST(request) {
   const name = String(body.deficiency_name || '').trim();
   const desc = String(body.description || '').trim();
   const req = String(body.required_document || '').trim();
+  const applies = normalizeApplies(body.applies_to);
   const id = Number(body.deficiency_id || 0);
 
   if (action === 'create') {
     if (!name || !req) return json({ ok: false, error: 'Name and required document are required.' }, 422);
     const row = await one(
-      'INSERT INTO deficiency_types (deficiency_name, description, required_document) VALUES ($1,$2,$3) RETURNING *',
-      [name, desc || null, req]
+      'INSERT INTO deficiency_types (deficiency_name, description, required_document, applies_to) VALUES ($1,$2,$3,$4) RETURNING *',
+      [name, desc || null, req, applies]
     );
     await logAction(user.user_id, `Created deficiency type: ${name}`);
     return json({ ok: true, type: row });
@@ -31,8 +39,8 @@ export async function POST(request) {
   if (action === 'update' && id > 0) {
     if (!name || !req) return json({ ok: false, error: 'Name and required document are required.' }, 422);
     await query(
-      'UPDATE deficiency_types SET deficiency_name=$1, description=$2, required_document=$3 WHERE deficiency_id=$4',
-      [name, desc || null, req, id]
+      'UPDATE deficiency_types SET deficiency_name=$1, description=$2, required_document=$3, applies_to=$4 WHERE deficiency_id=$5',
+      [name, desc || null, req, applies, id]
     );
     await logAction(user.user_id, `Updated deficiency type #${id}`);
     return json({ ok: true });

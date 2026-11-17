@@ -10,14 +10,20 @@ export async function GET() {
     return Number(result.rows[0].n);
   };
 
-  const [students, deficiencies, pending, approved, rejected, completed, unread, recent] = await Promise.all([
+  const countP = async (sql, params = []) => {
+    const result = await query(sql, params);
+    return Number(result.rows[0].n);
+  };
+
+  const [students, deficiencies, pending, approved, rejected, completed, openDefs, unread, recent] = await Promise.all([
     count("SELECT COUNT(*)::int AS n FROM users WHERE role IN ('Freshman','Transferee','Graduating')"),
     count('SELECT COUNT(*)::int AS n FROM student_deficiencies'),
     count("SELECT COUNT(*)::int AS n FROM uploaded_documents WHERE review_status IN ('Pending','Under Review')"),
     count("SELECT COUNT(*)::int AS n FROM uploaded_documents WHERE review_status = 'Approved'"),
     count("SELECT COUNT(*)::int AS n FROM uploaded_documents WHERE review_status = 'Rejected'"),
     count("SELECT COUNT(*)::int AS n FROM student_deficiencies WHERE status IN ('Approved','Completed')"),
-    count("SELECT COUNT(*)::int AS n FROM notifications WHERE status = 'Unread'"),
+    count("SELECT COUNT(*)::int AS n FROM student_deficiencies WHERE status IN ('Pending','Under Review','Rejected')"),
+    countP("SELECT COUNT(*)::int AS n FROM notifications WHERE status = 'Unread' AND receiver_id=$1", [user.user_id]),
     many(
       `SELECT sd.student_deficiency_id, sd.status, sd.assigned_date, u.first_name, u.last_name, u.role, dt.deficiency_name
        FROM student_deficiencies sd
@@ -27,7 +33,7 @@ export async function GET() {
     ),
   ]);
 
-  const stats = { students, deficiencies, pending, approved, rejected, completed, unread };
+  const stats = { students, deficiencies, pending, approved, rejected, completed, openDefs, unread };
 
   return json({ ok: true, stats, recent });
 }

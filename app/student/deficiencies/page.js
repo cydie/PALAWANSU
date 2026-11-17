@@ -40,8 +40,12 @@ export default function StudentDeficienciesPage() {
                   <td><StatusBadge status={r.status} /></td>
                   <td className="small">{r.remarks || '—'}</td>
                   <td>
-                    {['Pending', 'Rejected'].includes(r.status) ? (
-                      <Link className="btn btn-sm btn-primary" href={`/student/upload?sd=${r.student_deficiency_id}`}>Upload</Link>
+                    {['Pending', 'Rejected', 'Under Review'].includes(r.status) ? (
+                      <Link className="btn btn-sm btn-primary" href={`/student/upload?sd=${r.student_deficiency_id}`}>
+                        {r.status === 'Pending' ? 'Upload' : 'Re-upload'}
+                      </Link>
+                    ) : r.status === 'Completed' || r.status === 'Approved' ? (
+                      <span className="small text-success fw-semibold">Cleared</span>
                     ) : null}
                   </td>
                 </tr>

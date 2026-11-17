@@ -1,14 +1,17 @@
-# PalawanSU–Rizal Student Deficiency Monitoring System
+# Palawan State University – Rizal Campus  
+## Student Deficiency Monitoring System
 
-Web app for tracking documentary deficiencies of **Freshman**, **Transferee**, and **Graduating** students at Palawan State University – Rizal Campus.
+Web system for the **Office of the Registrar** to track documentary deficiencies of **Freshman**, **Transferee**, and **Graduating** students at **Palawan State University – Rizal Campus**.
 
 ## Stack
 
-- **Next.js 15 (React)** + Docker
-- **PostgreSQL** (inside Docker — no password to type)
-- Bootstrap 5 + Bootstrap Icons (responsive on phone, tablet, and desktop)
+- Next.js 15 (React) + PostgreSQL
+- Bootstrap 5 + Bootstrap Icons
+- Branding: Rizal Campus logo + PSU seal watermark
 
-## Run with Docker
+## How to run
+
+### Option A — Docker (recommended)
 
 1. Open **Docker Desktop** and wait until it is running.
 2. In this folder:
@@ -19,26 +22,45 @@ docker compose up --build
 
 3. Open **http://localhost:3000/**
 
-No `.env.local` and no PostgreSQL password. Docker starts the database and the website together.
+### Option B — Local (Node + PostgreSQL)
+
+1. Start PostgreSQL and create database `palawansu_deficiency` (or use Docker only for Postgres).
+2. Copy `.env.example` to `.env.local` if needed.
+3. Initialize and seed:
+
+```bash
+npm install
+npm run db:init
+npm run seed
+npm run dev
+```
+
+Or double-click **`start-dev.bat`**.
+
+4. Open **http://localhost:3000/**
+
+## Demo accounts
 
 | Username    | Password         | Role      |
 |-------------|------------------|-----------|
 | `admin`     | `Admin@123`      | Admin     |
 | `registrar` | `Registrar@123`  | Registrar |
-| `student`   | `Student@123`    | Student   |
+| `student`   | `Student@123`    | Freshman  |
 
-Stop it with `Ctrl+C`, or in another terminal: `docker compose down`.
+## Official workflow
 
-If an old Docker database was created before this setup, reset it once:
+1. **Admin / Registrar** → Assign Deficiencies (single student or bulk by category)  
+2. **Student** → My Deficiencies → Upload Documents (PDF/JPG/PNG) while status is Pending/Rejected  
+3. **Admin / Registrar** → Verification → Approve / Clear, Mark Reviewing, or Reject (remarks required)  
+4. Student receives **Notifications**; approved items become **Cleared (Completed)**  
+5. **Students** → Clearance view shows open vs cleared requirements  
+6. **Reports** → Open Deficiencies / Completion / Cleared Students → **Print / Save as PDF** or **Save as CSV**
+
+**Roles:** Registrar handles day-to-day deficiency work. **Users** and **System Logs** are Admin-only.
+
+## Reset Docker database
 
 ```bash
 docker compose down -v
 docker compose up --build
 ```
-
-## Suggested test path
-
-1. Log in as **admin** or **registrar** → Assign Deficiencies
-2. Log in as **student** → upload a PDF/JPG
-3. As admin/registrar → Verification → Approve or Reject
-4. Check student Notifications

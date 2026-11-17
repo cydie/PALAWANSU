@@ -1,6 +1,7 @@
 import { json, requireStaff } from '@/lib/auth';
 import { many, query } from '@/lib/db';
 import { logAction, sendNotification } from '@/lib/notify';
+import { getSmtpSettings, smtpIsReady } from '@/lib/settings';
 
 export async function GET() {
   const { user, error } = await requireStaff();
@@ -43,6 +44,15 @@ export async function POST(request) {
   const specificId = Number(body.user_id || 0);
   if (!title || !message) return json({ ok: false, error: 'Title and message are required.' }, 422);
   if (!['SMS', 'Email', 'System'].includes(type)) type = 'System';
+  if (type === 'Email' && !smtpIsReady(await getSmtpSettings())) {
+    return json(
+      {
+        ok: false,
+        error: 'SMTP is not ready. Open Admin → Settings, enable SMTP, save host/from address, then try Email again.',
+      },
+      422
+    );
+  }
 
   let targets = [];
   if (receiver === 'all_students') {

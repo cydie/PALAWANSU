@@ -79,6 +79,54 @@ export async function ensureDb() {
   } else {
     console.log('Database schema already present');
   }
+
+  // Lightweight migrations for existing Docker volumes
+  await app.query(`
+    ALTER TABLE deficiency_types
+      ADD COLUMN IF NOT EXISTS applies_to VARCHAR(100) NOT NULL DEFAULT 'All'
+  `);
+  await app.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_student_number_unique
+      ON users (student_number)
+      WHERE student_number IS NOT NULL AND student_number <> ''
+  `);
+  await app.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS student_deficiencies_open_unique
+      ON student_deficiencies (user_id, deficiency_id)
+      WHERE status IN ('Pending','Under Review','Rejected')
+  `);
+  await app.query(`
+    CREATE TABLE IF NOT EXISTS smtp_settings (
+      settings_id INTEGER PRIMARY KEY DEFAULT 1 CHECK (settings_id = 1),
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      host VARCHAR(255) NOT NULL DEFAULT '',
+      port INTEGER NOT NULL DEFAULT 587,
+      encryption VARCHAR(20) NOT NULL DEFAULT 'tls'
+        CHECK (encryption IN ('none', 'tls', 'ssl')),
+      username VARCHAR(255) NOT NULL DEFAULT '',
+      password VARCHAR(255) NOT NULL DEFAULT '',
+      from_email VARCHAR(150) NOT NULL DEFAULT '',
+      from_name VARCHAR(150) NOT NULL DEFAULT 'PSU Rizal Registrar',
+      reply_to VARCHAR(150) NOT NULL DEFAULT '',
+      updated_by INTEGER NULL REFERENCES users(user_id) ON DELETE SET NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await app.query(`
+    INSERT INTO smtp_settings (settings_id, enabled, host, port, encryption, from_name)
+    VALUES (1, FALSE, '', 587, 'tls', 'PSU Rizal · Office of the Registrar')
+    ON CONFLICT (settings_id) DO NOTHING
+  `);
+  // Allow Pending student accounts awaiting Admin/Registrar approval
+  await app.query(`
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check
+  `);
+  await app.query(`
+    ALTER TABLE users
+      ADD CONSTRAINT users_status_check
+      CHECK (status IN ('Active', 'Inactive', 'Pending'))
+  `);
+  console.log('Schema migrations applied');
   await app.end();
 }
 

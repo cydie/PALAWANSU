@@ -37,6 +37,12 @@ export async function POST(request) {
       }
       return json({ ok: false, error: 'Invalid username/email or password.' }, 401);
     }
+    if (user.status === 'Pending') {
+      return json({
+        ok: false,
+        error: 'Your account is still Pending. Wait for the Admin or Registrar to activate it before signing in.',
+      }, 403);
+    }
     if (user.status !== 'Active') {
       return json({ ok: false, error: 'Your account is inactive. Contact the registrar.' }, 403);
     }

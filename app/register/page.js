@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { RizalLogo } from '@/components/BrandLogo';
 import { api } from '@/lib/client';
 
 const ROLES = ['Freshman', 'Transferee', 'Graduating'];
@@ -10,6 +11,7 @@ const ROLES = ['Freshman', 'Transferee', 'Graduating'];
 export default function RegisterPage() {
   const router = useRouter();
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
   const [show, setShow] = useState(false);
 
@@ -17,13 +19,18 @@ export default function RegisterPage() {
     event.preventDefault();
     setBusy(true);
     setError('');
+    setSuccess('');
     const form = new FormData(event.currentTarget);
     try {
-      await api('/api/auth/register', {
+      const result = await api('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      router.push('/login');
+      setSuccess(
+        result.message
+        || 'Registration submitted. Your account is Pending until Admin or Registrar activates it.'
+      );
+      window.setTimeout(() => router.push('/login?pending=1'), 2500);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -35,20 +42,30 @@ export default function RegisterPage() {
       <div className="container-fluid p-0">
         <div className="row g-0 auth-split">
           <div className="col-xl-5 auth-hero">
-            <div className="eyebrow">PalawanSU · Rizal</div>
-            <h1>Create your student account</h1>
-            <p className="lead mb-0">Register as a freshman, transferee, or graduating student to receive deficiency notices and upload required documents.</p>
+            <div className="auth-hero-brand">
+              <RizalLogo size={64} />
+              <div className="brand-copy">
+                <strong>Palawan State University</strong>
+                <span>Rizal Campus</span>
+              </div>
+            </div>
+            <div className="eyebrow">Student registration</div>
+            <h1>Create your campus account</h1>
+            <p className="lead mb-0">
+              Register as a freshman, transferee, or graduating student so the registrar can assign deficiencies and you can upload required documents.
+            </p>
           </div>
           <div className="col-xl-7 auth-form-pane">
             <div className="auth-card wide">
               <h2>Student registration</h2>
-              <p className="lead">Fill in your campus details to finish signup.</p>
+              <p className="lead">Enter your official student details as recorded at PSU Rizal.</p>
               {error ? <div className="alert alert-danger">{error}</div> : null}
+              {success ? <div className="alert alert-success">{success}</div> : null}
               <form onSubmit={onSubmit}>
                 <div className="row g-3">
                   <div className="col-sm-6">
                     <label className="form-label">Student Number</label>
-                    <input name="student_number" className="form-control" required />
+                    <input name="student_number" className="form-control" placeholder="e.g. 2026-0001" required />
                   </div>
                   <div className="col-sm-6">
                     <label className="form-label">Category</label>
@@ -71,7 +88,7 @@ export default function RegisterPage() {
                   </div>
                   <div className="col-sm-6">
                     <label className="form-label">Email</label>
-                    <input type="email" name="email" className="form-control" required />
+                    <input type="email" name="email" className="form-control" placeholder="name@psu.palawan.edu.ph" required />
                   </div>
                   <div className="col-sm-6">
                     <label className="form-label">Username</label>

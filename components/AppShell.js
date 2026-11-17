@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/client';
+import { RizalLogo } from '@/components/BrandLogo';
+import NotificationBell from '@/components/NotificationBell';
+import { clearBootstrapOverlays, hideOffcanvas } from '@/lib/bootstrap-ui';
 
 const NAV = {
   admin: [
@@ -12,39 +15,46 @@ const NAV = {
     ['Deficiency Types', '/admin/deficiency-types', 'bi-journal-text'],
     ['Assign Deficiencies', '/admin/assign', 'bi-clipboard-plus'],
     ['Verification', '/admin/verification', 'bi-check2-square'],
-    ['Notifications', '/admin/notifications', 'bi-bell'],
+    ['Inbox', '/admin/notifications', 'bi-send'],
     ['Reports', '/admin/reports', 'bi-bar-chart-line'],
     ['Users', '/admin/users', 'bi-person-gear'],
-    ['System Logs', '/admin/logs', 'bi-clock-history'],
+    ['Settings', '/admin/settings', 'bi-gear', 'Admin'],
+    ['System Logs', '/admin/logs', 'bi-clock-history', 'Admin'],
   ],
   student: [
     ['Dashboard', '/student/dashboard', 'bi-house-door'],
     ['My Deficiencies', '/student/deficiencies', 'bi-exclamation-circle'],
     ['Upload Documents', '/student/upload', 'bi-cloud-arrow-up'],
     ['Submissions', '/student/submissions', 'bi-folder2-open'],
-    ['Notifications', '/student/notifications', 'bi-bell'],
     ['Profile', '/student/profile', 'bi-person-circle'],
   ],
 };
 
-const TITLES = Object.fromEntries(
-  [...NAV.admin, ...NAV.student].map(([label, href]) => [href, label])
-);
+const TITLES = {
+  ...Object.fromEntries([...NAV.admin, ...NAV.student].map(([label, href]) => [href, label])),
+  '/admin/notifications': 'Inbox',
+};
 
-function SidebarBody({ area, me, onLogout, pathname }) {
+function SidebarBody({ area, me, onLogout, pathname, onNavigate }) {
   const initials = `${me?.first_name?.[0] || ''}${me?.last_name?.[0] || ''}`.toUpperCase();
+  const links = NAV[area].filter((item) => !item[3] || item[3] === me?.role);
   return (
     <>
       <div className="brand-block">
-        <div className="brand-mark">PSU</div>
+        <RizalLogo size={48} />
         <div>
-          <div className="brand-name">PALAWANSU</div>
-          <div className="brand-sub">Rizal Campus</div>
+          <div className="brand-name">PSU Rizal</div>
+          <div className="brand-sub">Student Deficiency Monitoring</div>
         </div>
       </div>
       <nav className="side-nav" aria-label="Main">
-        {NAV[area].map(([label, href, icon]) => (
-          <Link key={href} href={href} className={`nav-link${pathname === href ? ' active' : ''}`}>
+        {links.map(([label, href, icon]) => (
+          <Link
+            key={href}
+            href={href}
+            className={`nav-link${pathname === href ? ' active' : ''}`}
+            onClick={onNavigate}
+          >
             <i className={`bi ${icon}`} aria-hidden="true" />
             <span>{label}</span>
           </Link>
@@ -66,38 +76,88 @@ function SidebarBody({ area, me, onLogout, pathname }) {
   );
 }
 
-export default function AppShell({ area, children, initialUser = null, initialUnread = 0 }) {
+export default function AppShell({ area, children, initialUser = null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState(initialUser);
-  const [unread, setUnread] = useState(initialUnread);
-  const title = TITLES[pathname] || 'PALAWANSU';
-  const notifPath = area === 'admin' ? '/admin/notifications' : '/student/notifications';
+  const [unread, setUnread] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [toast, setToast] = useState(null);
+  const seenIds = useRef(new Set());
+  const title = TITLES[pathname] || 'PSU Rizal';
+  const usersPath = '/admin/users';
+
+  const refreshNotifications = useCallback(async () => {
+    const data = await api('/api/auth/me');
+    setMe(data.user);
+    setUnread(data.unread || 0);
+    setNotifications(data.notifications || []);
+    return data;
+  }, []);
 
   useEffect(() => {
-    if (initialUser) {
-      setMe(initialUser);
-      setUnread(initialUnread);
-      return;
-    }
+    clearBootstrapOverlays();
+    hideOffcanvas('appSidebar');
+  }, [pathname]);
+
+  useEffect(() => {
     let cancelled = false;
-    api('/api/auth/me')
-      .then((data) => {
-        if (cancelled) return;
-        setMe(data.user);
-        setUnread(data.unread || 0);
-      })
+    refreshNotifications()
       .catch(() => {
         if (!cancelled) router.push('/login');
       });
     return () => {
       cancelled = true;
     };
-  }, [initialUser, initialUnread, router]);
+  }, [initialUser, router, refreshNotifications]);
+
+  // Near real-time notification updates for everyone
+  useEffect(() => {
+    if (!me) return undefined;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await refreshNotifications();
+        if (cancelled) return;
+        const latest = data.latest || [];
+        for (const note of latest) {
+          const id = Number(note.notification_id);
+          if (!id || seenIds.current.has(id)) continue;
+          seenIds.current.add(id);
+          setToast({
+            id,
+            title: note.title,
+            message: note.message,
+            registration: String(note.title || '').toLowerCase().includes('student registration'),
+          });
+          break;
+        }
+      } catch {
+        // ignore transient poll errors
+      }
+    }
+
+    const timer = window.setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [me, refreshNotifications]);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   async function logout() {
     await api('/api/auth/logout', { method: 'POST' });
     window.location.assign('/login');
+  }
+
+  function closeMobileMenu() {
+    hideOffcanvas('appSidebar');
   }
 
   if (!me) {
@@ -115,13 +175,16 @@ export default function AppShell({ area, children, initialUser = null, initialUn
           <i className="bi bi-list" />
         </button>
         <div className="mobile-brand">
-          <span className="brand-mark">PSU</span>
-          <span className="brand-name">PALAWANSU</span>
+          <RizalLogo size={34} />
+          <span className="brand-name">PSU Rizal</span>
         </div>
-        <Link className="notif-bell" href={notifPath} aria-label="Notifications">
-          <i className="bi bi-bell" />
-          {unread > 0 ? <span className="notif-count">{unread}</span> : null}
-        </Link>
+        <NotificationBell
+          area={area}
+          unread={unread}
+          notifications={notifications}
+          onChanged={refreshNotifications}
+          mobile
+        />
       </header>
 
       <div className="offcanvas offcanvas-start sidebar d-lg-none" tabIndex={-1} id="appSidebar">
@@ -130,7 +193,7 @@ export default function AppShell({ area, children, initialUser = null, initialUn
           <button type="button" className="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu" />
         </div>
         <div className="offcanvas-body sidebar-inner">
-          <SidebarBody area={area} me={me} onLogout={logout} pathname={pathname} />
+          <SidebarBody area={area} me={me} onLogout={logout} pathname={pathname} onNavigate={closeMobileMenu} />
         </div>
       </div>
 
@@ -144,13 +207,15 @@ export default function AppShell({ area, children, initialUser = null, initialUn
           <header className="topbar">
             <div className="topbar-copy">
               <h1 className="page-title">{title}</h1>
-              <p className="page-sub mb-0">Palawan State University – Rizal Campus</p>
+              <p className="page-sub mb-0">Palawan State University – Rizal Campus · Office of the Registrar</p>
             </div>
             <div className="topbar-actions d-none d-lg-flex">
-              <Link className="notif-bell" href={notifPath} aria-label="Notifications">
-                <i className="bi bi-bell" />
-                {unread > 0 ? <span className="notif-count">{unread}</span> : null}
-              </Link>
+              <NotificationBell
+                area={area}
+                unread={unread}
+                notifications={notifications}
+                onChanged={refreshNotifications}
+              />
             </div>
           </header>
           <main className="content-area">{children}</main>
@@ -159,6 +224,26 @@ export default function AppShell({ area, children, initialUser = null, initialUn
           </footer>
         </div>
       </div>
+
+      {toast ? (
+        <div className="live-toast" role="status" aria-live="polite">
+          <div className="live-toast-title">
+            <i className="bi bi-bell-fill" aria-hidden="true" />
+            {toast.title}
+          </div>
+          <div className="live-toast-body">{toast.message}</div>
+          <div className="live-toast-actions">
+            {area === 'admin' && toast.registration ? (
+              <Link href={usersPath} className="btn btn-sm btn-light" onClick={() => setToast(null)}>
+                Open Users
+              </Link>
+            ) : null}
+            <button type="button" className="btn btn-sm btn-outline-light" onClick={() => setToast(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import PasswordField from '@/components/PasswordField';
+import { RizalLogo } from '@/components/BrandLogo';
 import { api } from '@/lib/client';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingNote = searchParams.get('pending') === '1';
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -34,21 +38,33 @@ export default function LoginPage() {
       <div className="container-fluid p-0">
         <div className="row g-0 auth-split">
           <div className="col-xl-6 auth-hero">
-            <div className="eyebrow">Palawan State University · Rizal Campus</div>
-            <h1>Student Deficiency Monitoring</h1>
+            <div className="auth-hero-brand">
+              <RizalLogo size={72} />
+              <div className="brand-copy">
+                <strong>Palawan State University</strong>
+                <span>Rizal Campus</span>
+              </div>
+            </div>
+            <div className="eyebrow">Office of the Registrar</div>
+            <h1>Student Deficiency Monitoring System</h1>
             <p className="lead mb-0">
-              Track, upload, and verify documentary requirements for freshman, transferee, and graduating students — on any device.
+              Monitor, submit, and clear documentary requirements for freshman, transferee, and graduating students.
             </p>
             <ul className="auth-features d-none d-sm-grid">
-              <li><i className="bi bi-phone" /><span>Works on phones, tablets, and desktops with a Bootstrap 5 layout.</span></li>
-              <li><i className="bi bi-database" /><span>Records stored in PostgreSQL with a Next.js (React) app.</span></li>
-              <li><i className="bi bi-shield-check" /><span>Secure logins, document upload, and registrar verification in one place.</span></li>
+              <li><i className="bi bi-clipboard-check" /><span>Registrar assigns and tracks documentary deficiencies per student category.</span></li>
+              <li><i className="bi bi-cloud-arrow-up" /><span>Students upload Form 137, PSA, TOR, clearance, and other required files.</span></li>
+              <li><i className="bi bi-printer" /><span>Generate, print, and save official deficiency and completion reports.</span></li>
             </ul>
           </div>
           <div className="col-xl-6 auth-form-pane">
             <div className="auth-card">
               <h2>Sign in</h2>
-              <p className="lead">Use your campus account to continue.</p>
+              <p className="lead">Use your PSU Rizal campus account to continue.</p>
+              {pendingNote ? (
+                <div className="alert alert-info">
+                  Registration received. Your account is <strong>Pending</strong> until Admin or Registrar activates it.
+                </div>
+              ) : null}
               {error ? <div className="alert alert-danger">{error}</div> : null}
               <form onSubmit={onSubmit}>
                 <div className="mb-3">
@@ -68,5 +84,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="auth-page d-flex align-items-center justify-content-center p-4">Loading…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { one } from '@/lib/db';
 import { json, STUDENT_ROLES, publicUser } from '@/lib/auth';
-import { logAction } from '@/lib/notify';
+import { logAction, notifyStaff } from '@/lib/notify';
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
@@ -47,7 +47,7 @@ export async function POST(request) {
   const hash = await bcrypt.hash(data.password, 12);
   const inserted = await one(
     `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Active') RETURNING *`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Pending') RETURNING *`,
     [
       data.student_number,
       data.first_name,
@@ -59,6 +59,19 @@ export async function POST(request) {
       data.role,
     ]
   );
-  await logAction(inserted.user_id, `Registered as ${data.role}`);
-  return json({ ok: true, user: publicUser(inserted) });
+
+  await logAction(inserted.user_id, `Registered as ${data.role} (Pending approval)`);
+  await notifyStaff(
+    'New student registration',
+    `${data.first_name} ${data.last_name} (${data.student_number}) registered as ${data.role}. Account status is Pending.`,
+    inserted.user_id
+  );
+
+  return json({
+    ok: true,
+    pending: true,
+    message:
+      'Registration submitted. Your account is Pending until the Admin or Registrar activates it. You will be able to sign in after approval.',
+    user: publicUser(inserted),
+  });
 }

@@ -9,7 +9,7 @@ export default function StudentDashboardPage() {
   const [data, setData] = useState(null);
   useEffect(() => { api('/api/student/dashboard').then(setData).catch(() => {}); }, []);
   if (!data) return <div className="text-muted">Loading dashboard…</div>;
-  const { stats, defs, notifs } = data;
+  const { stats, defs } = data;
 
   return (
     <>
@@ -29,52 +29,29 @@ export default function StudentDashboardPage() {
           </div>
         ))}
       </div>
-      <div className="row g-3">
-        <div className="col-lg-7">
-          <div className="panel">
-            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-              <div className="panel-title mb-0">My deficiencies</div>
-              <Link href="/student/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up" /> Upload documents</Link>
-            </div>
-            {!defs.length ? (
-              <div className="empty-state">No deficiencies assigned yet. Check back after the registrar updates your record.</div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-sm">
-                  <thead><tr><th>Requirement</th><th>Document</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {defs.map((d) => (
-                      <tr key={d.student_deficiency_id}>
-                        <td>{d.deficiency_name}</td>
-                        <td className="small text-muted">{d.required_document}</td>
-                        <td><StatusBadge status={d.status} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+      <div className="panel">
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div className="panel-title mb-0">My deficiencies</div>
+          <Link href="/student/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up" /> Upload documents</Link>
         </div>
-        <div className="col-lg-5">
-          <div className="panel">
-            <div className="panel-title">Recent notifications</div>
-            {!notifs.length ? <div className="empty-state py-3">No notifications yet.</div> : (
-              <>
-                <div className="list-group list-group-flush">
-                  {notifs.map((n) => (
-                    <div className="list-group-item px-0" key={n.notification_id}>
-                      <div className="d-flex justify-content-between"><strong>{n.title}</strong><StatusBadge status={n.status} /></div>
-                      <div className="small text-muted">{n.sent_at}</div>
-                      <div>{n.message}</div>
-                    </div>
-                  ))}
-                </div>
-                <Link className="btn btn-outline-secondary btn-sm mt-2" href="/student/notifications">View all</Link>
-              </>
-            )}
+        {!defs.length ? (
+          <div className="empty-state">No deficiencies assigned yet. Check back after the registrar updates your record.</div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-sm">
+              <thead><tr><th>Requirement</th><th>Document</th><th>Status</th></tr></thead>
+              <tbody>
+                {defs.map((d) => (
+                  <tr key={d.student_deficiency_id}>
+                    <td>{d.deficiency_name}</td>
+                    <td className="small text-muted">{d.required_document}</td>
+                    <td><StatusBadge status={d.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
     </>
   );

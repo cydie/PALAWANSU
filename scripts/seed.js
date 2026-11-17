@@ -31,7 +31,7 @@ await client.connect();
 const accounts = [
   {
     username: 'admin',
-    email: 'admin@palsu-rizal.edu.ph',
+    email: 'admin.rizal@psu.palawan.edu.ph',
     first_name: 'System',
     last_name: 'Administrator',
     role: 'Admin',
@@ -40,7 +40,7 @@ const accounts = [
   },
   {
     username: 'registrar',
-    email: 'registrar@palsu-rizal.edu.ph',
+    email: 'registrar.rizal@psu.palawan.edu.ph',
     first_name: 'Campus',
     last_name: 'Registrar',
     role: 'Registrar',
@@ -49,7 +49,7 @@ const accounts = [
   },
   {
     username: 'student',
-    email: 'student@palsu-rizal.edu.ph',
+    email: 'juan.delacruz@psu.palawan.edu.ph',
     first_name: 'Juan',
     last_name: 'Dela Cruz',
     role: 'Freshman',
@@ -78,22 +78,29 @@ for (const s of accounts) {
 }
 
 const types = [
-  ['Form 137', 'Permanent Student Record required for enrollment or transfer.', 'Form 137 / Permanent Record'],
-  ['Form 138', 'Student Report Card from previous school year.', 'Form 138 / Report Card'],
-  ['PSA Birth Certificate', 'Official PSA birth certificate copy.', 'PSA Birth Certificate'],
-  ['Good Moral Certificate', 'Certificate of good moral character from previous school.', 'Good Moral Certificate'],
-  ['Transcript of Records', 'Official TOR for transferees and graduating students.', 'Transcript of Records'],
-  ['Clearance', 'School clearance for graduation processing.', 'Clearance Form'],
+  ['Form 137', 'Permanent Student Record from previous school — required for enrollment at Palawan State University – Rizal Campus.', 'Form 137 / Permanent Record', 'Freshman,Transferee'],
+  ['Form 138', 'Report card / SF9 from the last school year attended.', 'Form 138 / Report Card (SF9)', 'Freshman,Transferee'],
+  ['PSA Birth Certificate', 'PSA-authenticated birth certificate (original or certified true copy).', 'PSA Birth Certificate', 'All'],
+  ['Good Moral Certificate', 'Certificate of good moral character issued by the previous school.', 'Certificate of Good Moral Character', 'Freshman,Transferee'],
+  ['Transcript of Records', 'Official TOR for transferees and graduating students (PSU or previous HEI).', 'Transcript of Records (TOR)', 'Transferee,Graduating'],
+  ['Clearance', 'Campus clearance required before graduation / credential release at PSU Rizal.', 'Student Clearance Form', 'Graduating'],
+  ['ID Picture', 'Recent 2×2 ID photo with white background for campus records.', '2×2 ID Picture', 'All'],
+  ['Medical Certificate', 'Medical fitness certificate for enrollment / campus activities.', 'Medical Certificate', 'All'],
 ];
 
 for (const t of types) {
   const exists = await client.query('SELECT deficiency_id FROM deficiency_types WHERE deficiency_name = $1', [t[0]]);
   if (!exists.rowCount) {
     await client.query(
-      'INSERT INTO deficiency_types (deficiency_name, description, required_document) VALUES ($1,$2,$3)',
+      'INSERT INTO deficiency_types (deficiency_name, description, required_document, applies_to) VALUES ($1,$2,$3,$4)',
       t
     );
     console.log(`Added deficiency type: ${t[0]}`);
+  } else {
+    await client.query(
+      'UPDATE deficiency_types SET description=$2, required_document=$3, applies_to=$4 WHERE deficiency_name=$1',
+      t
+    );
   }
 }
 
