@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 function appliesTo(type, role) {
   const raw = String(type?.applies_to || 'All');
@@ -17,11 +18,19 @@ export default function AssignPage() {
   const [studentId, setStudentId] = useState('');
   const [mode, setMode] = useState('single');
   const [bulkCategory, setBulkCategory] = useState('Freshman');
+  const [formKey, setFormKey] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
-  async function load() {
-    setData(await api('/api/admin/assign'));
-  }
-  useEffect(() => { load().catch((err) => setError(err.message)); }, []);
+  const load = useCallback(async () => {
+    const next = await api('/api/admin/assign');
+    setData({
+      students: next.students || [],
+      types: next.types || [],
+      assigned: next.assigned || [],
+    });
+  }, []);
+
+  useLiveReload(load, { intervalMs: 3000 });
 
   const selectedStudent = useMemo(
     () => data.students.find((s) => String(s.user_id) === String(studentId)),
@@ -39,7 +48,9 @@ export default function AssignPage() {
   async function onSubmit(event) {
     event.preventDefault();
     setError('');
-    const form = new FormData(event.currentTarget);
+    setFlash('');
+    setSubmitting(true);
+    const form = new FormData(event.target);
     try {
       const payload =
         mode === 'bulk'
@@ -59,11 +70,14 @@ export default function AssignPage() {
             };
       const result = await api('/api/admin/assign', { method: 'POST', body: JSON.stringify(payload) });
       setFlash(result.message);
-      event.currentTarget.reset();
+      // Remount form instead of .reset() — avoids null reset crashes after await.
+      setFormKey((k) => k + 1);
       setStudentId('');
       await load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -100,7 +114,7 @@ export default function AssignPage() {
                 Bulk by category
               </button>
             </div>
-            <form onSubmit={onSubmit}>
+            <form key={formKey} onSubmit={onSubmit}>
               {mode === 'single' ? (
                 <div className="mb-3">
                   <label className="form-label">Student</label>
@@ -110,6 +124,7 @@ export default function AssignPage() {
                     required
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
+                    disabled={submitting}
                   >
                     <option value="">Select…</option>
                     {data.students.map((s) => (
@@ -128,6 +143,7 @@ export default function AssignPage() {
                     value={bulkCategory}
                     onChange={(e) => setBulkCategory(e.target.value)}
                     required
+                    disabled={submitting}
                   >
                     {['Freshman', 'Transferee', 'Graduating'].map((c) => <option key={c}>{c}</option>)}
                   </select>
@@ -135,7 +151,7 @@ export default function AssignPage() {
               )}
               <div className="mb-3">
                 <label className="form-label">Deficiency type</label>
-                <select name="deficiency_id" className="form-select" required defaultValue="">
+                <select name="deficiency_id" className="form-select" required defaultValue="" disabled={submitting}>
                   <option value="">Select…</option>
                   {filteredTypes.map((t) => (
                     <option key={t.deficiency_id} value={t.deficiency_id}>
@@ -147,23 +163,27 @@ export default function AssignPage() {
               </div>
               <div className="mb-3">
                 <label className="form-label">Remarks</label>
-                <textarea name="remarks" className="form-control" rows={3} placeholder="Optional instructions for the student" />
+                <textarea name="remarks" className="form-control" rows={3} placeholder="Optional instructions for the student" disabled={submitting} />
               </div>
               <div className="form-check mb-3">
-                <input className="form-check-input" type="checkbox" name="notify" id="notify" defaultChecked />
+                <input className="form-check-input" type="checkbox" name="notify" id="notify" defaultChecked disabled={submitting} />
                 <label className="form-check-label" htmlFor="notify">
                   Notify student (in-app + email if SMTP is ready)
                 </label>
               </div>
-              <button className="btn btn-primary w-100">
-                <i className="bi bi-clipboard-plus" /> {mode === 'bulk' ? 'Bulk Assign' : 'Assign Deficiency'}
+              <button type="submit" className="btn btn-primary w-100" disabled={submitting}>
+                <i className="bi bi-clipboard-plus" />{' '}
+                {submitting ? 'Assigning…' : mode === 'bulk' ? 'Bulk Assign' : 'Assign Deficiency'}
               </button>
             </form>
           </div>
         </div>
         <div className="col-lg-8">
           <div className="panel">
-            <div className="panel-title">Recent assignments</div>
+            <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
+              <div className="panel-title mb-0">Recent assignments</div>
+              <span className="small text-muted">Live · updates every few seconds</span>
+            </div>
             <div className="table-responsive">
               <table className="table table-sm align-middle mb-0">
                 <thead>

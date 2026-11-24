@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import DocumentActions from '@/components/DocumentActions';
 import ModalPortal from '@/components/ModalPortal';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 import { hideModal, showModal } from '@/lib/bootstrap-ui';
 
 export default function StudentsPage() {
@@ -17,14 +18,15 @@ export default function StudentsPage() {
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
+  const [addFormKey, setAddFormKey] = useState(0);
 
-  async function load(nextQ = q, nextCat = category) {
+  const load = useCallback(async (nextQ = q, nextCat = category) => {
     const params = new URLSearchParams({ q: nextQ, category: nextCat });
     const data = await api(`/api/admin/students?${params}`);
-    setStudents(data.students);
-  }
+    setStudents(data.students || []);
+  }, [q, category]);
 
-  useEffect(() => { load().catch((err) => setError(err.message)); }, []);
+  useLiveReload(load, { intervalMs: 4000 });
 
   function openAdd() {
     setFormError('');
@@ -42,13 +44,13 @@ export default function StudentsPage() {
     setFormError('');
     setError('');
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(event.target);
       const result = await api('/api/admin/students', {
         method: 'POST',
         body: JSON.stringify({ action: 'create', ...Object.fromEntries(form.entries()) }),
       });
       setFlash(result.message || 'Student added successfully.');
-      event.currentTarget.reset();
+      setAddFormKey((k) => k + 1);
       await hideModal('addStudent');
       await load();
     } catch (err) {
@@ -61,7 +63,7 @@ export default function StudentsPage() {
     setFormError('');
     setError('');
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(event.target);
       const result = await api('/api/admin/students', {
         method: 'POST',
         body: JSON.stringify({ action: 'update', ...Object.fromEntries(form.entries()) }),
@@ -248,7 +250,7 @@ export default function StudentsPage() {
       <ModalPortal>
         <div className="modal fade" id="addStudent" tabIndex={-1} aria-hidden="true">
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-            <form className="modal-content" onSubmit={createStudent}>
+            <form className="modal-content" onSubmit={createStudent} key={addFormKey}>
               <div className="modal-header">
                 <h5 className="modal-title">Add Student</h5>
                 <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" />

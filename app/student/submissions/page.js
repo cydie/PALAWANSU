@@ -1,13 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 export default function SubmissionsPage() {
   const [rows, setRows] = useState([]);
-  useEffect(() => { api('/api/student/submissions').then((d) => setRows(d.rows)).catch(() => {}); }, []);
+
+  const load = useCallback(async () => {
+    setRows((await api('/api/student/submissions')).rows || []);
+  }, []);
+
+  useLiveReload(load, { intervalMs: 3000 });
 
   return (
     <div className="panel">

@@ -1,38 +1,38 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 export default function AdminNotificationsPage() {
   const [data, setData] = useState({ students: [], outbox: [] });
   const [receiver, setReceiver] = useState('all_students');
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
+  const [formKey, setFormKey] = useState(0);
 
-  async function load() {
+  const load = useCallback(async () => {
     const result = await api('/api/admin/notifications');
     setData({
       students: result.students || [],
       outbox: result.outbox || [],
     });
-  }
-
-  useEffect(() => {
-    load().catch((err) => setError(err.message));
   }, []);
+
+  useLiveReload(load, { intervalMs: 4000 });
 
   async function send(event) {
     event.preventDefault();
     setFlash('');
     setError('');
     try {
-      const form = new FormData(event.currentTarget);
+      const form = new FormData(event.target);
       const result = await api('/api/admin/notifications', {
         method: 'POST',
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       setFlash(result.message);
-      event.currentTarget.reset();
+      setFormKey((k) => k + 1);
       setReceiver('all_students');
       await load();
     } catch (err) {
@@ -48,7 +48,7 @@ export default function AdminNotificationsPage() {
         <div className="col-lg-5">
           <div className="panel">
             <div className="panel-title">Compose notification</div>
-            <form onSubmit={send}>
+            <form key={formKey} onSubmit={send}>
               <div className="mb-3">
                 <label className="form-label">Recipients</label>
                 <select

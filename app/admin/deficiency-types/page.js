@@ -1,35 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import ModalPortal from '@/components/ModalPortal';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 import { hideModal, showModal } from '@/lib/bootstrap-ui';
 
 export default function DeficiencyTypesPage() {
   const [types, setTypes] = useState([]);
   const [edit, setEdit] = useState(null);
   const [flash, setFlash] = useState('');
+  const [createKey, setCreateKey] = useState(0);
 
-  async function load() {
-    setTypes((await api('/api/admin/deficiency-types')).types);
-  }
-  useEffect(() => { load().catch((err) => setFlash(err.message)); }, []);
+  const load = useCallback(async () => {
+    setTypes((await api('/api/admin/deficiency-types')).types || []);
+  }, []);
+
+  useLiveReload(load, { intervalMs: 5000 });
 
   async function create(event) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(event.target);
     await api('/api/admin/deficiency-types', {
       method: 'POST',
       body: JSON.stringify({ action: 'create', ...Object.fromEntries(form.entries()) }),
     });
-    event.currentTarget.reset();
+    setCreateKey((k) => k + 1);
     setFlash('Deficiency type added.');
     await load();
   }
 
   async function update(event) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(event.target);
     await api('/api/admin/deficiency-types', {
       method: 'POST',
       body: JSON.stringify({ action: 'update', ...Object.fromEntries(form.entries()) }),
@@ -58,7 +61,7 @@ export default function DeficiencyTypesPage() {
         <div className="col-lg-4">
           <div className="panel">
             <div className="panel-title">Add type</div>
-            <form onSubmit={create}>
+            <form key={createKey} onSubmit={create}>
               <div className="mb-3"><label className="form-label">Name</label><input name="deficiency_name" className="form-control" required /></div>
               <div className="mb-3"><label className="form-label">Required document</label><input name="required_document" className="form-control" required /></div>
               <div className="mb-3">

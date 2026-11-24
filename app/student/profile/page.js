@@ -7,6 +7,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState(null);
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
+  const [passwordKey, setPasswordKey] = useState(0);
 
   async function load() {
     setUser((await api('/api/student/profile')).user);
@@ -18,7 +19,7 @@ export default function ProfilePage() {
     try {
       const data = await api('/api/student/profile', {
         method: 'POST',
-        body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget).entries())),
+        body: JSON.stringify(Object.fromEntries(new FormData(event.target).entries())),
       });
       setFlash(data.message);
       setError('');
@@ -33,11 +34,11 @@ export default function ProfilePage() {
     try {
       const data = await api('/api/student/profile', {
         method: 'POST',
-        body: JSON.stringify({ action: 'password', ...Object.fromEntries(new FormData(event.currentTarget).entries()) }),
+        body: JSON.stringify({ action: 'password', ...Object.fromEntries(new FormData(event.target).entries()) }),
       });
       setFlash(data.message);
       setError('');
-      event.currentTarget.reset();
+      setPasswordKey((k) => k + 1);
     } catch (err) {
       setError(err.message);
     }
@@ -46,7 +47,7 @@ export default function ProfilePage() {
   async function savePhoto(event) {
     event.preventDefault();
     try {
-      const data = await api('/api/student/profile', { method: 'POST', body: new FormData(event.currentTarget) });
+      const data = await api('/api/student/profile', { method: 'POST', body: new FormData(event.target) });
       setFlash(data.message);
       setError('');
       await load();
@@ -94,7 +95,7 @@ export default function ProfilePage() {
           </div>
           <div className="panel">
             <div className="panel-title">Change password</div>
-            <form className="row g-3" onSubmit={savePassword}>
+            <form className="row g-3" onSubmit={savePassword} key={passwordKey}>
               <div className="col-md-4"><label className="form-label">Current</label><input type="password" name="current_password" className="form-control" required /></div>
               <div className="col-md-4"><label className="form-label">New</label><input type="password" name="new_password" className="form-control" minLength={8} required /></div>
               <div className="col-md-4"><label className="form-label">Confirm</label><input type="password" name="confirm_password" className="form-control" minLength={8} required /></div>

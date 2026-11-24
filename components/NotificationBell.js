@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { clearBootstrapOverlays } from '@/lib/bootstrap-ui';
 
 function formatWhen(value) {
   if (!value) return '';
@@ -22,24 +23,32 @@ export default function NotificationBell({
   mobile = false,
 }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [localError, setLocalError] = useState('');
   const rootRef = useRef(null);
 
   useEffect(() => {
-    function onDocClick(event) {
+    function onDocPointer(event) {
       if (!rootRef.current?.contains(event.target)) setOpen(false);
     }
     function onEsc(event) {
       if (event.key === 'Escape') setOpen(false);
     }
-    document.addEventListener('mousedown', onDocClick);
+    // Use click (not mousedown) so button onClick can run first.
+    document.addEventListener('click', onDocPointer);
     document.addEventListener('keydown', onEsc);
     return () => {
-      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('click', onDocPointer);
       document.removeEventListener('keydown', onEsc);
     };
   }, []);
 
-  async function markRead(id) {
+  async function markRead(id, event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    clearBootstrapOverlays();
+    setLocalError('');
+    setBusy(true);
     try {
       if (area === 'admin') {
         await api('/api/admin/notifications', {
@@ -52,16 +61,24 @@ export default function NotificationBell({
           body: JSON.stringify({ notification_id: id }),
         });
       }
-      onChanged?.();
-    } catch {
-      // ignore
+      await onChanged?.();
+    } catch (err) {
+      setLocalError(err.message || 'Could not mark as read.');
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function markAll() {
+  async function markAll(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    clearBootstrapOverlays();
+    setLocalError('');
+    setBusy(true);
     try {
       if (area === 'admin') {
-        for (const item of notifications.filter((n) => n.status === 'Unread')) {
+        const unreadItems = notifications.filter((n) => n.status === 'Unread');
+        for (const item of unreadItems) {
           await api('/api/admin/notifications', {
             method: 'POST',
             body: JSON.stringify({ action: 'mark_read', notification_id: item.notification_id }),
@@ -73,9 +90,11 @@ export default function NotificationBell({
           body: JSON.stringify({ action: 'mark_all' }),
         });
       }
-      onChanged?.();
-    } catch {
-      // ignore
+      await onChanged?.();
+    } catch (err) {
+      setLocalError(err.message || 'Could not mark all as read.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -86,22 +105,33 @@ export default function NotificationBell({
         className="notif-bell"
         aria-label="Notifications"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={(event) => {
+          event.stopPropagation();
+          clearBootstrapOverlays();
+          setOpen((v) => !v);
+          setLocalError('');
+        }}
       >
         <i className="bi bi-bell" aria-hidden="true" />
         {unread > 0 ? <span className="notif-count">{unread > 99 ? '99+' : unread}</span> : null}
       </button>
 
       {open ? (
-        <div className="notif-panel" role="dialog" aria-label="All notifications">
+        <div
+          className="notif-panel"
+          role="dialog"
+          aria-label="All notifications"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="notif-panel-head">
             <strong>Notifications</strong>
             {unread > 0 ? (
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={markAll}>
-                Mark all read
+              <button type="button" className="btn btn-sm btn-outline-secondary" disabled={busy} onClick={markAll}>
+                {busy ? 'Updating…' : 'Mark all read'}
               </button>
             ) : null}
           </div>
+          {localError ? <div className="alert alert-danger py-2 mx-2 mt-2 mb-0">{localError}</div> : null}
           <div className="notif-panel-list">
             {!notifications.length ? (
               <div className="notif-empty">No notifications yet.</div>
@@ -121,16 +151,22 @@ export default function NotificationBell({
                         <Link
                           href="/admin/users?status=Pending"
                           className="btn btn-sm btn-primary"
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setOpen(false);
-                            if (n.status === 'Unread') markRead(n.notification_id);
+                            if (n.status === 'Unread') markRead(n.notification_id, event);
                           }}
                         >
                           Open Users
                         </Link>
                       ) : null}
                       {n.status === 'Unread' ? (
-                        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => markRead(n.notification_id)}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={busy}
+                          onClick={(event) => markRead(n.notification_id, event)}
+                        >
                           Mark read
                         </button>
                       ) : null}

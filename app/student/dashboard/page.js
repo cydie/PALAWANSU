@@ -1,13 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 export default function StudentDashboardPage() {
   const [data, setData] = useState(null);
-  useEffect(() => { api('/api/student/dashboard').then(setData).catch(() => {}); }, []);
+
+  const load = useCallback(async () => {
+    setData(await api('/api/student/dashboard'));
+  }, []);
+
+  useLiveReload(load, { intervalMs: 3000 });
+
   if (!data) return <div className="text-muted">Loading dashboard…</div>;
   const { stats, defs } = data;
 
@@ -32,7 +39,10 @@ export default function StudentDashboardPage() {
       <div className="panel">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
           <div className="panel-title mb-0">My deficiencies</div>
-          <Link href="/student/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up" /> Upload documents</Link>
+          <div className="d-flex align-items-center gap-2">
+            <span className="small text-muted d-none d-sm-inline">Live</span>
+            <Link href="/student/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up" /> Upload documents</Link>
+          </div>
         </div>
         {!defs.length ? (
           <div className="empty-state">No deficiencies assigned yet. Check back after the registrar updates your record.</div>

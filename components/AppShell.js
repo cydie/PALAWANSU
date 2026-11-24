@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/client';
 import { RizalLogo } from '@/components/BrandLogo';
 import NotificationBell from '@/components/NotificationBell';
@@ -76,6 +77,31 @@ function SidebarBody({ area, me, onLogout, pathname, onNavigate }) {
   );
 }
 
+function MobileSidebarPortal({ area, me, pathname, onLogout, onNavigate }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="offcanvas offcanvas-start sidebar"
+      tabIndex={-1}
+      id="appSidebar"
+      aria-hidden="true"
+      data-bs-scroll="true"
+    >
+      <div className="offcanvas-header">
+        <h2 className="offcanvas-title h5 mb-0">Menu</h2>
+        <button type="button" className="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu" />
+      </div>
+      <div className="offcanvas-body sidebar-inner">
+        <SidebarBody area={area} me={me} onLogout={onLogout} pathname={pathname} onNavigate={onNavigate} />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function AppShell({ area, children, initialUser = null }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -111,7 +137,6 @@ export default function AppShell({ area, children, initialUser = null }) {
     };
   }, [initialUser, router, refreshNotifications]);
 
-  // Near real-time notification updates for everyone
   useEffect(() => {
     if (!me) return undefined;
     let cancelled = false;
@@ -138,7 +163,7 @@ export default function AppShell({ area, children, initialUser = null }) {
       }
     }
 
-    const timer = window.setInterval(poll, 5000);
+    const timer = window.setInterval(poll, 3000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -187,15 +212,13 @@ export default function AppShell({ area, children, initialUser = null }) {
         />
       </header>
 
-      <div className="offcanvas offcanvas-start sidebar d-lg-none" tabIndex={-1} id="appSidebar">
-        <div className="offcanvas-header">
-          <h2 className="offcanvas-title h5 mb-0">Menu</h2>
-          <button type="button" className="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu" />
-        </div>
-        <div className="offcanvas-body sidebar-inner">
-          <SidebarBody area={area} me={me} onLogout={logout} pathname={pathname} onNavigate={closeMobileMenu} />
-        </div>
-      </div>
+      <MobileSidebarPortal
+        area={area}
+        me={me}
+        pathname={pathname}
+        onLogout={logout}
+        onNavigate={closeMobileMenu}
+      />
 
       <div className="app-shell">
         <aside className="sidebar desktop-sidebar d-none d-lg-flex">

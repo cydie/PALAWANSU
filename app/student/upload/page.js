@@ -1,30 +1,38 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 function UploadForm() {
   const params = useSearchParams();
+  const formRef = useRef(null);
   const [options, setOptions] = useState([]);
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [fileKey, setFileKey] = useState(0);
   const [selectedId, setSelectedId] = useState(params.get('sd') || '');
   const selected = params.get('sd') || '';
 
-  useEffect(() => {
-    api('/api/student/upload')
-      .then((d) => {
-        setOptions(d.options);
-        if (!selected && d.options?.[0]) {
-          setSelectedId(String(d.options[0].student_deficiency_id));
-        } else if (selected) {
-          setSelectedId(selected);
-        }
-      })
-      .catch((err) => setError(err.message));
+  const load = useCallback(async () => {
+    const d = await api('/api/student/upload');
+    setOptions(d.options || []);
+    setSelectedId((prev) => {
+      if (prev && (d.options || []).some((o) => String(o.student_deficiency_id) === String(prev))) {
+        return String(prev);
+      }
+      if (selected && (d.options || []).some((o) => String(o.student_deficiency_id) === String(selected))) {
+        return String(selected);
+      }
+      if (d.options?.[0]) return String(d.options[0].student_deficiency_id);
+      return '';
+    });
   }, [selected]);
+
+  useLiveReload(load, { intervalMs: 3000, enabled: !submitting });
 
   const current = useMemo(
     () => options.find((o) => String(o.student_deficiency_id) === String(selectedId)),
@@ -34,18 +42,28 @@ function UploadForm() {
 
   async function onSubmit(event) {
     event.preventDefault();
+    const formEl = formRef.current || event.currentTarget;
+    if (!formEl) {
+      setError('Upload form is not ready. Please refresh and try again.');
+      return;
+    }
     setError('');
     setFlash('');
-    const form = new FormData(event.currentTarget);
+    setSubmitting(true);
+    const form = new FormData(formEl);
     try {
       const data = await api('/api/student/upload', { method: 'POST', body: form });
       setFlash(data.message);
-      event.currentTarget.reset();
+      const keepId = selectedId;
+      // Remount file input instead of form.reset() — avoids null reset crashes.
+      setFileKey((k) => k + 1);
       const refreshed = await api('/api/student/upload');
-      setOptions(refreshed.options);
-      if (selectedId) setSelectedId(selectedId);
+      setOptions(refreshed.options || []);
+      if (keepId) setSelectedId(String(keepId));
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -61,7 +79,7 @@ function UploadForm() {
       {!options.length ? (
         <div className="empty-state">You have no open deficiencies that need uploads. <Link href="/student/deficiencies">View all</Link></div>
       ) : (
-        <form onSubmit={onSubmit}>
+        <form ref={formRef} onSubmit={onSubmit}>
           <div className="mb-3">
             <label className="form-label">Deficiency</label>
             <select
@@ -70,6 +88,7 @@ function UploadForm() {
               required
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
+              disabled={submitting}
             >
               {options.map((o) => (
                 <option key={o.student_deficiency_id} value={o.student_deficiency_id}>
@@ -83,9 +102,19 @@ function UploadForm() {
             <label className="form-label">
               {isReplace ? 'New document file' : 'Document file'} (PDF, JPG, PNG · max 5 MB)
             </label>
-            <input type="file" name="document" className="form-control" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" required />
+            <input
+              key={fileKey}
+              type="file"
+              name="document"
+              className="form-control"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,image/*"
+              required
+              disabled={submitting}
+            />
           </div>
-          <button className="btn btn-primary">{isReplace ? 'Replace file' : 'Upload'}</button>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Uploading…' : isReplace ? 'Replace file' : 'Upload'}
+          </button>
         </form>
       )}
     </div>

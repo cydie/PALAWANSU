@@ -1,18 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 export default function StudentDeficienciesPage() {
   const [status, setStatus] = useState('All');
   const [rows, setRows] = useState([]);
 
-  async function load(next = status) {
-    setRows((await api(`/api/student/deficiencies?status=${encodeURIComponent(next)}`)).rows);
-  }
-  useEffect(() => { load().catch(() => {}); }, []);
+  const load = useCallback(async (next = status) => {
+    setRows((await api(`/api/student/deficiencies?status=${encodeURIComponent(next)}`)).rows || []);
+  }, [status]);
+
+  useLiveReload(load, { intervalMs: 3000 });
 
   return (
     <div className="panel">

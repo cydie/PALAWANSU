@@ -1,10 +1,11 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import StatusBadge from '@/components/StatusBadge';
 import ModalPortal from '@/components/ModalPortal';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 import { hideModal, showModal } from '@/lib/bootstrap-ui';
 
 const STUDENT_ROLES = ['Freshman', 'Transferee', 'Graduating'];
@@ -25,26 +26,26 @@ function UsersPageInner() {
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
 
-  async function load(nextRole = role, nextStatus = status) {
+  const load = useCallback(async (nextRole = role, nextStatus = status) => {
     const params = new URLSearchParams({
       role: nextRole,
       status: nextStatus,
     });
     const data = await api(`/api/admin/users?${params}`);
-    setUsers(data.users);
+    setUsers(data.users || []);
     setScope(data.scope || 'all');
     setAllowedRoles(data.allowedRoles || ALL_ROLES);
-  }
+  }, [role, status]);
 
   useEffect(() => {
     const fromUrl = searchParams.get('status');
     if (['Pending', 'Active', 'Inactive'].includes(fromUrl || '')) {
       setStatus(fromUrl);
-      load('All', fromUrl).catch((err) => setFlash(err.message));
-      return;
+      setRole('All');
     }
-    load().catch((err) => setFlash(err.message));
   }, [searchParams]);
+
+  useLiveReload(load, { intervalMs: 3000 });
 
   async function openModal(nextMode, row) {
     setMode(nextMode);
@@ -57,7 +58,7 @@ function UsersPageInner() {
     event.preventDefault();
     setError('');
     try {
-      const body = { action: mode, ...Object.fromEntries(new FormData(event.currentTarget).entries()) };
+      const body = { action: mode, ...Object.fromEntries(new FormData(event.target).entries()) };
       const result = await api('/api/admin/users', { method: 'POST', body: JSON.stringify(body) });
       setFlash(result.message || (mode === 'create' ? 'User created.' : 'User updated.'));
       await hideModal('userModal');

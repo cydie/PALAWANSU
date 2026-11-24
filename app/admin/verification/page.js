@@ -1,36 +1,55 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import DocumentActions from '@/components/DocumentActions';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
+import { clearBootstrapOverlays } from '@/lib/bootstrap-ui';
 
 export default function VerificationPage() {
   const [status, setStatus] = useState('Pending');
   const [docs, setDocs] = useState([]);
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
+  const [fieldError, setFieldError] = useState({});
+  const [busyId, setBusyId] = useState(null);
 
-  async function load(next = status) {
+  const load = useCallback(async (next = status) => {
     const data = await api(`/api/admin/verification?status=${encodeURIComponent(next)}`);
-    setDocs(data.documents);
-  }
-  useEffect(() => { load().catch((err) => setError(err.message)); }, []);
+    setDocs(data.documents || []);
+  }, [status]);
 
-  async function review(form, action) {
+  useEffect(() => {
+    clearBootstrapOverlays();
+  }, []);
+
+  useLiveReload(load, { intervalMs: 3000, enabled: !busyId });
+
+  async function review(documentId, action, remarksValue) {
+    clearBootstrapOverlays();
     setError('');
-    const fd = new FormData(form);
-    const remarks = String(fd.get('review_remarks') || '').trim();
+    setFlash('');
+    const remarks = String(remarksValue || '').trim();
     if (action === 'Rejected' && !remarks) {
+      setFieldError((prev) => ({ ...prev, [documentId]: 'Enter remarks before rejecting.' }));
       setError('Remarks are required when rejecting a document.');
       return;
     }
-    if (action === 'Rejected' && !confirm('Reject this document? The student will need to re-upload.')) return;
+    if (action === 'Rejected' && !window.confirm('Reject this document? The student will need to re-upload.')) {
+      return;
+    }
+    setFieldError((prev) => {
+      const next = { ...prev };
+      delete next[documentId];
+      return next;
+    });
+    setBusyId(documentId);
     try {
       const result = await api('/api/admin/verification', {
         method: 'POST',
         body: JSON.stringify({
-          document_id: fd.get('document_id'),
+          document_id: documentId,
           review_remarks: remarks,
           review_action: action,
         }),
@@ -39,10 +58,13 @@ export default function VerificationPage() {
       await load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusyId(null);
     }
   }
 
   async function reopen(sdId) {
+    clearBootstrapOverlays();
     const remarks = window.prompt('Reason for reopening this cleared deficiency:');
     if (!remarks || !remarks.trim()) return;
     try {
@@ -95,6 +117,8 @@ export default function VerificationPage() {
             const isImage = /\.(png|jpe?g)$/i.test(d.file_name || d.file_path || '');
             const isPdf = /\.pdf$/i.test(d.file_name || d.file_path || '');
             const previewSrc = `/api/files/${d.file_path}`;
+            const remarksId = `review-remarks-${d.document_id}`;
+            const busy = busyId === d.document_id;
             return (
               <div className="col-12 col-xl-6" key={d.document_id}>
                 <div className="panel verify-card mb-0">
@@ -140,27 +164,47 @@ export default function VerificationPage() {
                   </div>
 
                   {canAct ? (
-                    <form className="d-grid gap-2" onSubmit={(e) => e.preventDefault()}>
-                      <input type="hidden" name="document_id" value={d.document_id} />
+                    <div className="d-grid gap-2">
+                      <label className="form-label mb-0" htmlFor={remarksId}>Review remarks</label>
                       <textarea
+                        id={remarksId}
                         name="review_remarks"
-                        className="form-control"
+                        className={`form-control${fieldError[d.document_id] ? ' is-invalid' : ''}`}
                         rows={2}
                         placeholder="Remarks (required for reject)"
                         defaultValue={d.remarks || ''}
+                        disabled={busy}
                       />
-                      <div className="btn-group review-actions">
-                        <button type="button" className="btn btn-success" onClick={(e) => review(e.currentTarget.closest('form'), 'Approved')}>
-                          Approve / Clear
+                      {fieldError[d.document_id] ? (
+                        <div className="invalid-feedback d-block">{fieldError[d.document_id]}</div>
+                      ) : null}
+                      <div className="review-actions">
+                        <button
+                          type="button"
+                          className="btn btn-success"
+                          disabled={busy}
+                          onClick={() => review(d.document_id, 'Approved', document.getElementById(remarksId)?.value)}
+                        >
+                          {busy ? 'Saving…' : 'Approve / Clear'}
                         </button>
-                        <button type="button" className="btn btn-outline-primary" onClick={(e) => review(e.currentTarget.closest('form'), 'Under Review')}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary"
+                          disabled={busy}
+                          onClick={() => review(d.document_id, 'Under Review', document.getElementById(remarksId)?.value)}
+                        >
                           Mark Reviewing
                         </button>
-                        <button type="button" className="btn btn-outline-danger" onClick={(e) => review(e.currentTarget.closest('form'), 'Rejected')}>
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger"
+                          disabled={busy}
+                          onClick={() => review(d.document_id, 'Rejected', document.getElementById(remarksId)?.value)}
+                        >
                           Reject
                         </button>
                       </div>
-                    </form>
+                    </div>
                   ) : locked && d.def_status === 'Completed' ? (
                     <button type="button" className="btn btn-sm btn-outline-warning" onClick={() => reopen(d.student_deficiency_id)}>
                       Reopen deficiency

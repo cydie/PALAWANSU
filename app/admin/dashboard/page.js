@@ -1,19 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/client';
+import { useLiveReload } from '@/lib/live';
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api('/api/admin/dashboard').then(setData).catch((err) => setError(err.message));
+  const load = useCallback(async () => {
+    const next = await api('/api/admin/dashboard');
+    setData(next);
+    setError('');
   }, []);
 
-  if (error) return <div className="alert alert-danger">{error}</div>;
+  useLiveReload(load, { intervalMs: 3000 });
+
+  if (error && !data) return <div className="alert alert-danger">{error}</div>;
   if (!data) return <div className="text-muted">Loading dashboard…</div>;
   const { stats, recent } = data;
 
@@ -38,7 +43,10 @@ export default function AdminDashboardPage() {
       <div className="row g-3">
         <div className="col-lg-8">
           <div className="panel">
-            <div className="panel-title">Recent deficiency assignments</div>
+            <div className="d-flex justify-content-between align-items-center gap-2 mb-2">
+              <div className="panel-title mb-0">Recent deficiency assignments</div>
+              <span className="small text-muted">Live</span>
+            </div>
             {!recent.length ? (
               <div className="empty-state">No deficiencies assigned yet. <Link href="/admin/assign">Assign one</Link>.</div>
             ) : (
