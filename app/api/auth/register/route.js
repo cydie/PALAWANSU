@@ -1,4 +1,10 @@
 import bcrypt from 'bcryptjs';
+import {
+  currentSchoolYear,
+  currentSemester,
+  normalizeSchoolYear,
+  normalizeSemester,
+} from '@/lib/academic';
 import { one } from '@/lib/db';
 import { json, STUDENT_ROLES, publicUser } from '@/lib/auth';
 import { logAction, notifyStaff } from '@/lib/notify';
@@ -13,6 +19,8 @@ export async function POST(request) {
     email: String(body.email || '').trim(),
     username: String(body.username || '').trim(),
     role: String(body.role || ''),
+    school_year: normalizeSchoolYear(body.school_year) || currentSchoolYear(),
+    semester: normalizeSemester(body.semester) || currentSemester(),
     password: String(body.password || ''),
     password_confirm: String(body.password_confirm || ''),
   };
@@ -46,8 +54,8 @@ export async function POST(request) {
 
   const hash = await bcrypt.hash(data.password, 12);
   const inserted = await one(
-    `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Pending') RETURNING *`,
+    `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status, school_year, semester)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'Pending',$9,$10) RETURNING *`,
     [
       data.student_number,
       data.first_name,
@@ -57,6 +65,8 @@ export async function POST(request) {
       data.username,
       hash,
       data.role,
+      data.school_year,
+      data.semester,
     ]
   );
 

@@ -140,7 +140,9 @@ export default function VerificationPage() {
                     <div className="fw-semibold text-break">
                       <i className="bi bi-paperclip" /> {d.file_name}
                     </div>
-                    <div className="text-muted mt-1">Uploaded {d.uploaded_at}</div>
+                    <div className="text-muted mt-1">
+                      Uploaded {d.uploaded_at ? new Date(d.uploaded_at).toLocaleString() : '—'}
+                    </div>
                     {d.last_review ? (
                       <div className="text-muted mt-1">
                         Last review: {d.last_review.review_action} by {d.last_review.first_name} {d.last_review.last_name}

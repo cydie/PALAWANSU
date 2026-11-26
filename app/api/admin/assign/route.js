@@ -7,9 +7,9 @@ export async function GET() {
   if (error) return error;
   const [students, types, assigned] = await Promise.all([
     many(
-      `SELECT user_id, first_name, last_name, middle_name, student_number, role
+      `SELECT user_id, first_name, last_name, middle_name, student_number, role, school_year, semester
        FROM users WHERE role IN ('Freshman','Transferee','Graduating') AND status='Active'
-       ORDER BY last_name, first_name`
+       ORDER BY school_year DESC NULLS LAST, last_name, first_name`
     ),
     many('SELECT * FROM deficiency_types ORDER BY deficiency_name'),
     many(

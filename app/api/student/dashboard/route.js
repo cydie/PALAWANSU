@@ -18,11 +18,14 @@ export async function GET() {
       [uid]
     ),
     count('SELECT COUNT(*)::int AS n FROM student_deficiencies WHERE user_id=$1', [uid]),
+    // Dashboard list: open items only — cleared deficiencies stay on My Deficiencies
     many(
       `SELECT sd.*, dt.deficiency_name, dt.required_document
        FROM student_deficiencies sd
        JOIN deficiency_types dt ON dt.deficiency_id = sd.deficiency_id
-       WHERE sd.user_id=$1 ORDER BY sd.assigned_date DESC LIMIT 6`,
+       WHERE sd.user_id=$1 AND sd.status IN ('Pending','Under Review','Rejected')
+       ORDER BY CASE sd.status WHEN 'Rejected' THEN 0 WHEN 'Pending' THEN 1 ELSE 2 END, sd.assigned_date DESC
+       LIMIT 8`,
       [uid]
     ),
     many('SELECT * FROM notifications WHERE receiver_id=$1 ORDER BY sent_at DESC LIMIT 5', [uid]),

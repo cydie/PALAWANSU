@@ -90,6 +90,16 @@ export async function ensureDb() {
       ON users (student_number)
       WHERE student_number IS NOT NULL AND student_number <> ''
   `);
+  // Deduplicate open assignments before enforcing uniqueness (keep newest row)
+  await app.query(`
+    DELETE FROM student_deficiencies sd
+    USING student_deficiencies newer
+    WHERE sd.user_id = newer.user_id
+      AND sd.deficiency_id = newer.deficiency_id
+      AND sd.status IN ('Pending','Under Review','Rejected')
+      AND newer.status IN ('Pending','Under Review','Rejected')
+      AND sd.student_deficiency_id < newer.student_deficiency_id
+  `);
   await app.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS student_deficiencies_open_unique
       ON student_deficiencies (user_id, deficiency_id)
@@ -125,6 +135,23 @@ export async function ensureDb() {
     ALTER TABLE users
       ADD CONSTRAINT users_status_check
       CHECK (status IN ('Active', 'Inactive', 'Pending'))
+  `);
+  // Academic period for student clearance records
+  await app.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS school_year VARCHAR(9) NULL
+  `);
+  await app.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS semester VARCHAR(20) NULL
+  `);
+  await app.query(`
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_semester_check
+  `);
+  await app.query(`
+    ALTER TABLE users
+      ADD CONSTRAINT users_semester_check
+      CHECK (semester IS NULL OR semester IN ('1st Semester', '2nd Semester', 'Midyear'))
   `);
   console.log('Schema migrations applied');
   await app.end();

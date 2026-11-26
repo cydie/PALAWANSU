@@ -121,7 +121,7 @@ export default function AdminNotificationsPage() {
                       <td>{o.first_name} {o.last_name}</td>
                       <td>{o.notification_type}</td>
                       <td>{o.title}</td>
-                      <td>{o.sent_at}</td>
+                      <td className="small text-nowrap">{o.sent_at ? new Date(o.sent_at).toLocaleString() : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

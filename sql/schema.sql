@@ -21,6 +21,9 @@ CREATE TABLE users (
   username VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL CHECK (role IN ('Admin', 'Registrar', 'Freshman', 'Transferee', 'Graduating')),
+  school_year VARCHAR(9) NULL,
+  semester VARCHAR(20) NULL
+    CHECK (semester IS NULL OR semester IN ('1st Semester', '2nd Semester', 'Midyear')),
   profile_image VARCHAR(255) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Pending')),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

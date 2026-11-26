@@ -4,9 +4,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { RizalLogo } from '@/components/BrandLogo';
+import {
+  SEMESTERS,
+  currentSchoolYear,
+  currentSemester,
+  schoolYearOptions,
+} from '@/lib/academic';
 import { api } from '@/lib/client';
 
 const ROLES = ['Freshman', 'Transferee', 'Graduating'];
+const YEAR_OPTIONS = schoolYearOptions();
+const DEFAULT_SY = currentSchoolYear();
+const DEFAULT_SEM = currentSemester();
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -72,6 +81,22 @@ export default function RegisterPage() {
                     <select name="role" className="form-select" required defaultValue="">
                       <option value="">Select…</option>
                       {ROLES.map((role) => <option key={role}>{role}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-sm-6">
+                    <label className="form-label">School year</label>
+                    <select name="school_year" className="form-select" required defaultValue={DEFAULT_SY}>
+                      {YEAR_OPTIONS.map((y) => (
+                        <option key={y} value={y}>SY {y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-sm-6">
+                    <label className="form-label">Semester / term</label>
+                    <select name="semester" className="form-select" required defaultValue={DEFAULT_SEM}>
+                      {SEMESTERS.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="col-sm-4">

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
+import { formatPeriod } from '@/lib/academic';
 import { api } from '@/lib/client';
 import { useLiveReload } from '@/lib/live';
 
@@ -129,7 +130,7 @@ export default function AssignPage() {
                     <option value="">Select…</option>
                     {data.students.map((s) => (
                       <option key={s.user_id} value={s.user_id}>
-                        {s.last_name}, {s.first_name} ({s.role} · {s.student_number || 'n/a'})
+                        {s.last_name}, {s.first_name} ({s.role} · {s.student_number || 'n/a'} · {formatPeriod(s.school_year, s.semester)})
                       </option>
                     ))}
                   </select>

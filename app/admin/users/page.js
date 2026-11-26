@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import StatusBadge from '@/components/StatusBadge';
 import ModalPortal from '@/components/ModalPortal';
@@ -25,6 +26,7 @@ function UsersPageInner() {
   const [mode, setMode] = useState('create');
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
 
   const load = useCallback(async (nextRole = role, nextStatus = status) => {
     const params = new URLSearchParams({
@@ -50,12 +52,13 @@ function UsersPageInner() {
   async function openModal(nextMode, row) {
     setMode(nextMode);
     setEdit(row || {});
-    setError('');
+    setFormError('');
     window.setTimeout(() => showModal('userModal'), 0);
   }
 
   async function save(event) {
     event.preventDefault();
+    setFormError('');
     setError('');
     try {
       const body = { action: mode, ...Object.fromEntries(new FormData(event.target).entries()) };
@@ -64,28 +67,30 @@ function UsersPageInner() {
       await hideModal('userModal');
       await load();
     } catch (err) {
-      setError(err.message);
+      setFormError(err.message);
     }
   }
 
   async function changeStatus(id, nextStatus, previousStatus) {
     if (nextStatus === previousStatus) return;
+    setError('');
+    setFlash('');
     try {
       const result = await api('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify({ action: 'set_status', user_id: id, status: nextStatus }),
       });
       setFlash(result.message || `Status updated to ${nextStatus}.`);
-      await load();
     } catch (err) {
-      setFlash(err.message);
-      await load();
+      setError(err.message);
     }
+    await load();
   }
 
   const roleOptions = scope === 'students' ? STUDENT_ROLES : ALL_ROLES;
+  const createRoles = scope === 'students' ? STUDENT_ROLES : ['Admin', 'Registrar'];
   const filterOptions = ['All', ...roleOptions];
-  const defaultCreateRole = roleOptions.includes('Freshman') ? 'Freshman' : roleOptions[0];
+  const defaultCreateRole = createRoles[0];
 
   return (
     <div className="panel">
@@ -97,8 +102,8 @@ function UsersPageInner() {
           <div className="panel-title">{scope === 'students' ? 'Student accounts' : 'User accounts'}</div>
           <div className="small text-muted">
             {scope === 'students'
-              ? 'Registrar view: student accounts only, including Pending registrations'
-              : 'Manage Admin, Registrar, and student logins — Pending registrations appear first'}
+              ? 'Approve Pending registrations and manage student login status. Add / edit records under Students.'
+              : 'Manage Admin and Registrar logins. Student records and SY/term live under Students.'}
           </div>
         </div>
         <div className="panel-toolbar-actions">
@@ -124,10 +129,17 @@ function UsersPageInner() {
               <option key={s}>{s}</option>
             ))}
           </select>
-          <button type="button" className="btn btn-primary" onClick={() => openModal('create', {})}>
-            <i className="bi bi-person-plus" aria-hidden="true" />
-            <span>{scope === 'students' ? 'Add Student' : 'Add User'}</span>
-          </button>
+          {scope === 'students' ? (
+            <Link href="/admin/students" className="btn btn-primary">
+              <i className="bi bi-people" aria-hidden="true" />
+              <span>Open Students</span>
+            </Link>
+          ) : (
+            <button type="button" className="btn btn-primary" onClick={() => openModal('create', {})}>
+              <i className="bi bi-person-plus" aria-hidden="true" />
+              <span>Add Staff</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -209,6 +221,7 @@ function UsersPageInner() {
                 <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close" />
               </div>
               <div className="modal-body">
+                {formError ? <div className="alert alert-danger py-2">{formError}</div> : null}
                 <div className="row g-3">
                   <div className="col-md-4">
                     <label className="form-label">First name</label>
@@ -222,14 +235,18 @@ function UsersPageInner() {
                     <label className="form-label">Last name</label>
                     <input name="last_name" className="form-control" defaultValue={edit?.last_name || ''} required />
                   </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Student Number</label>
-                    <input name="student_number" className="form-control" defaultValue={edit?.student_number || ''} placeholder="Required for students" />
-                  </div>
+                  {mode === 'update' && STUDENT_ROLES.includes(edit?.role) ? (
+                    <div className="col-md-6">
+                      <label className="form-label">Student Number</label>
+                      <input name="student_number" className="form-control" defaultValue={edit?.student_number || ''} placeholder="Required for students" />
+                    </div>
+                  ) : (
+                    <input type="hidden" name="student_number" value={edit?.student_number || ''} />
+                  )}
                   <div className="col-md-6">
                     <label className="form-label">Role</label>
                     <select name="role" className="form-select" defaultValue={edit?.role || defaultCreateRole}>
-                      {roleOptions.map((r) => <option key={r}>{r}</option>)}
+                      {(mode === 'create' ? createRoles : roleOptions).map((r) => <option key={r}>{r}</option>)}
                     </select>
                   </div>
                   <div className="col-md-6">

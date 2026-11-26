@@ -38,14 +38,21 @@ export default function StudentDashboardPage() {
       </div>
       <div className="panel">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-          <div className="panel-title mb-0">My deficiencies</div>
+          <div>
+            <div className="panel-title mb-0">Needs your attention</div>
+            <div className="small text-muted">Pending / rejected / under review only — cleared items are hidden here</div>
+          </div>
           <div className="d-flex align-items-center gap-2">
             <span className="small text-muted d-none d-sm-inline">Live</span>
             <Link href="/student/upload" className="btn btn-sm btn-primary"><i className="bi bi-cloud-arrow-up" /> Upload documents</Link>
           </div>
         </div>
         {!defs.length ? (
-          <div className="empty-state">No deficiencies assigned yet. Check back after the registrar updates your record.</div>
+          <div className="empty-state">
+            {stats.done > 0
+              ? 'You have no open deficiencies. Cleared items are listed under My Deficiencies.'
+              : 'No deficiencies assigned yet. Check back after the registrar updates your record.'}
+          </div>
         ) : (
           <div className="table-responsive">
             <table className="table table-sm">

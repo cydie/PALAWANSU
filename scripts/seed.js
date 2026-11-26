@@ -55,6 +55,8 @@ const accounts = [
     role: 'Freshman',
     password: 'Student@123',
     student_number: '2026-0001',
+    school_year: '2025-2026',
+    semester: '1st Semester',
   },
 ];
 
@@ -63,15 +65,36 @@ for (const s of accounts) {
   const found = await client.query('SELECT user_id FROM users WHERE username = $1 LIMIT 1', [s.username]);
   if (found.rowCount) {
     await client.query(
-      "UPDATE users SET password = $1, email = $2, role = $3, status = 'Active', first_name = $4, last_name = $5, student_number = $6 WHERE user_id = $7",
-      [hash, s.email, s.role, s.first_name, s.last_name, s.student_number, found.rows[0].user_id]
+      `UPDATE users SET password = $1, email = $2, role = $3, status = 'Active', first_name = $4, last_name = $5,
+              student_number = $6, school_year = $7, semester = $8 WHERE user_id = $9`,
+      [
+        hash,
+        s.email,
+        s.role,
+        s.first_name,
+        s.last_name,
+        s.student_number,
+        s.school_year || null,
+        s.semester || null,
+        found.rows[0].user_id,
+      ]
     );
     console.log(`Updated ${s.username}`);
   } else {
     await client.query(
-      `INSERT INTO users (student_number, first_name, last_name, email, username, password, role, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Active')`,
-      [s.student_number, s.first_name, s.last_name, s.email, s.username, hash, s.role]
+      `INSERT INTO users (student_number, first_name, last_name, email, username, password, role, status, school_year, semester)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Active', $8, $9)`,
+      [
+        s.student_number,
+        s.first_name,
+        s.last_name,
+        s.email,
+        s.username,
+        hash,
+        s.role,
+        s.school_year || null,
+        s.semester || null,
+      ]
     );
     console.log(`Created ${s.username}`);
   }

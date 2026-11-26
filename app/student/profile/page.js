@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { formatPeriod } from '@/lib/academic';
 import { api } from '@/lib/client';
 
 export default function ProfilePage() {
@@ -75,6 +76,7 @@ export default function ProfilePage() {
             )}
             <h5>{user.name}</h5>
             <div className="text-muted">{user.role} · {user.student_number}</div>
+            <div className="small text-muted mt-1">{formatPeriod(user.school_year, user.semester)}</div>
             <form onSubmit={savePhoto} className="mt-3">
               <input type="file" name="profile_image" className="form-control form-control-sm mb-2" accept="image/jpeg,image/png" required />
               <button className="btn btn-sm btn-outline-primary w-100">Upload photo</button>

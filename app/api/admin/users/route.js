@@ -1,4 +1,10 @@
 import bcrypt from 'bcryptjs';
+import {
+  currentSchoolYear,
+  currentSemester,
+  normalizeSchoolYear,
+  normalizeSemester,
+} from '@/lib/academic';
 import { json, requireStaff, STUDENT_ROLES } from '@/lib/auth';
 import { many, one, query } from '@/lib/db';
 import { logAction, notifyStudent } from '@/lib/notify';
@@ -20,7 +26,7 @@ export async function GET(request) {
   const allowed = allowedRolesFor(user);
   const params = [];
   let sql =
-    'SELECT user_id, student_number, first_name, last_name, middle_name, email, username, role, status, created_at FROM users WHERE 1=1';
+    'SELECT user_id, student_number, first_name, last_name, middle_name, email, username, role, school_year, semester, status, created_at FROM users WHERE 1=1';
 
   if (user.role !== 'Admin') {
     params.push(STUDENT_ROLES);
@@ -112,11 +118,18 @@ export async function POST(request) {
   const status = ['Active', 'Inactive', 'Pending'].includes(body.status) ? body.status : 'Active';
   const password = String(body.password || '');
   const id = Number(body.user_id || 0);
+  const isStudentRole = STUDENT_ROLES.includes(role);
+  const schoolYear = isStudentRole
+    ? (normalizeSchoolYear(body.school_year) || currentSchoolYear())
+    : null;
+  const semester = isStudentRole
+    ? (normalizeSemester(body.semester) || currentSemester())
+    : null;
 
   if (!first || !last || !email.includes('@') || !username) {
     return json({ ok: false, error: 'Please fill required fields with a valid email.' }, 422);
   }
-  if (STUDENT_ROLES.includes(role) && !studentNumber) {
+  if (isStudentRole && !studentNumber) {
     return json({ ok: false, error: 'Student number is required for student accounts.' }, 422);
   }
 
@@ -128,8 +141,8 @@ export async function POST(request) {
     );
     if (exists) return json({ ok: false, error: 'Email, username, or student number already exists.' }, 409);
     await query(
-      `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      `INSERT INTO users (student_number, first_name, last_name, middle_name, email, username, password, role, status, school_year, semester)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         studentNumber || null,
         first,
@@ -140,6 +153,8 @@ export async function POST(request) {
         await bcrypt.hash(password, 12),
         role,
         status,
+        schoolYear,
+        semester,
       ]
     );
     await logAction(user.user_id, `Created user ${username}`);
@@ -152,9 +167,20 @@ export async function POST(request) {
     return json({ ok: false, error: 'You can only manage student accounts.' }, 403);
   }
 
-  const params = [studentNumber || null, first, last, middle || null, email, username, role, status];
+  const params = [
+    studentNumber || null,
+    first,
+    last,
+    middle || null,
+    email,
+    username,
+    role,
+    status,
+    schoolYear,
+    semester,
+  ];
   let sql =
-    'UPDATE users SET student_number=$1, first_name=$2, last_name=$3, middle_name=$4, email=$5, username=$6, role=$7, status=$8';
+    'UPDATE users SET student_number=$1, first_name=$2, last_name=$3, middle_name=$4, email=$5, username=$6, role=$7, status=$8, school_year=$9, semester=$10';
   if (password) {
     params.push(await bcrypt.hash(password, 12));
     sql += `, password=$${params.length}`;
